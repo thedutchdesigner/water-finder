@@ -1,4 +1,4 @@
-// app.js - Manual AR overlay with camera + compass
+// app.js - Manual AR overlay with proper toggle and full-screen camera
 
 document.addEventListener('DOMContentLoaded', () => {
   // Leaflet map setup
@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }).addTo(map);
   const markers = L.markerClusterGroup({ maxClusterRadius: 50 }).addTo(map);
 
+  // Geolocation & Overpass
   let locationMarker;
   map.locate({ setView: true, maxZoom: 16 });
   map.on('locationfound', e => {
@@ -18,56 +19,46 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   map.on('locationerror', () => alert('Could not get your location'));
 
-  // Debounce and cache for bbox fetch
-  let fetchTimeout;
-  const cache = new Map();
+  let timeout; const cache = new Map();
   map.on('moveend', () => {
-    clearTimeout(fetchTimeout);
-    fetchTimeout = setTimeout(() => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => {
       const b = map.getBounds();
-      const key = [b.getSouth().toFixed(3), b.getWest().toFixed(3),
-                   b.getNorth().toFixed(3), b.getEast().toFixed(3)].join(',');
+      const key = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()]
+        .map(v => v.toFixed(3)).join(',');
       if (cache.has(key)) renderMarkers(cache.get(key));
       else fetchFountains(b, key);
     }, 500);
   });
 
   async function fetchNearby(lat, lon, radius) {
-    const q = `[out:json][timeout:15];
-node["amenity"="drinking_water"](around:${radius},${lat},${lon});
-out center;`;
+    const q = `[out:json][timeout:15];node["amenity"="drinking_water"](around:${radius},${lat},${lon});out center;`;
     try {
-      const resp = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: q });
-      const data = await resp.json();
-      renderMarkers(data.elements);
+      const r = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: q });
+      const d = await r.json(); renderMarkers(d.elements);
     } catch (e) { console.error(e); }
   }
 
   async function fetchFountains(bounds, key) {
-    const q = `[out:json][timeout:25];
-(
-  node["amenity"="drinking_water"](${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()});
-  way["amenity"="drinking_water"](${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()});
-  relation["amenity"="drinking_water"](${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()});
-);
-out center;`;
+    const q = `[out:json][timeout:25];(` +
+      `node["amenity"="drinking_water"](${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()});` +
+      `way["amenity"="drinking_water"](${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()});` +
+      `relation["amenity"="drinking_water"](${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()});` +
+    `);out center;`;
     try {
-      const resp = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: q });
-      const data = await resp.json();
-      cache.set(key, data.elements);
-      renderMarkers(data.elements);
+      const r = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: q });
+      const d = await r.json(); cache.set(key, d.elements); renderMarkers(d.elements);
     } catch (e) { console.error(e); }
   }
 
   function renderMarkers(list) {
-    markers.clearLayers();
-    window._fountains = list;
+    markers.clearLayers(); window._fountains = list;
     list.forEach(pt => {
-      const lat = pt.lat ?? pt.center?.lat;
-      const lon = pt.lon ?? pt.center?.lon;
+      const lat = pt.lat ?? pt.center?.lat, lon = pt.lon ?? pt.center?.lon;
       if (lat == null || lon == null) return;
-      const name = pt.tags?.name || 'Drinking water';
-      markers.addLayer(L.marker([lat, lon]).bindPopup(`<strong>${name}</strong><br><button onclick="navigate(${lat},${lon})">Navigate</button>`));
+      markers.addLayer(L.marker([lat, lon]).bindPopup(
+        `<strong>${pt.tags?.name || 'Drinking water'}</strong><br><button onclick="navigate(${lat},${lon})">Navigate</button>`
+      ));
     });
   }
 
@@ -89,74 +80,96 @@ out center;`;
   let stream, watcher;
 
   arBtn.addEventListener('click', async () => {
-    if (arView.style.display !== 'block') {
-      // show AR view
-      arView.style.display = 'block';
-      mapDiv.style.display = 'none';
-      arBtn.style.display = 'none';
-      // start camera
+    // show AR view
+    mapDiv.style.display = 'none';
+    arBtn.style.display = 'none';
+    arView.style.display = 'block';
+    exitBtn.style.display = 'block';
+    info.style.display = 'block';
+
+    // start camera
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      video.srcObject = stream;
+      await video.play();
+    } catch (e) {
+      console.error('Camera error', e);
+      alert('Camera not available');
+      return;
+    }
+
+    // prepare overlay
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    // orientation
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-        video.srcObject = stream;
-        await video.play();
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        // request orientation permission
-        if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-          const resp = await DeviceOrientationEvent.requestPermission();
-          if (resp !== 'granted') throw new Error('Permission denied');
+        const resp = await DeviceOrientationEvent.requestPermission();
+        if (resp === 'granted') {
+          startOrientation();
+        } else {
+          console.warn('Orientation permission denied');
         }
-        // start orientation listener
-        watcher = ev => drawAR(ev.alpha ?? ev.webkitCompassHeading ?? 0);
-        window.addEventListener('deviceorientationabsolute', watcher, true);
-        window.addEventListener('deviceorientation', watcher, true);
-      } catch (e) {
-        console.error(e);
-        alert('AR not available');
-        exitAR();
+      } catch (err) {
+        console.error('Orientation error', err);
       }
+    } else {
+      startOrientation();
     }
   });
 
-  exitBtn.addEventListener('click', () => exitAR());
-
-  function exitAR() {
+  exitBtn.addEventListener('click', () => {
+    // stop AR view
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    video.srcObject = null;
     arView.style.display = 'none';
+    exitBtn.style.display = 'none';
+    info.style.display = 'none';
     mapDiv.style.display = 'block';
     arBtn.style.display = 'block';
-    if (stream) stream.getTracks().forEach(t => t.stop());
-    window.removeEventListener('deviceorientationabsolute', watcher);
-    window.removeEventListener('deviceorientation', watcher);
+    if (watcher) {
+      window.removeEventListener('deviceorientationabsolute', watcher);
+      window.removeEventListener('deviceorientation', watcher);
+    }
+  });
+
+  function startOrientation() {
+    watcher = ev => drawOverlay(ev.alpha ?? ev.webkitCompassHeading ?? 0);
+    window.addEventListener('deviceorientationabsolute', watcher, true);
+    window.addEventListener('deviceorientation', watcher, true);
   }
 
-  function drawAR(heading) {
+  function drawOverlay(heading) {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const fountains = window._fountains || [];
     if (!locationMarker) return;
     const userPos = locationMarker.getLatLng();
     const data = fountains.map(f => {
-      const lat = f.lat ?? f.center.lat;
-      const lon = f.lon ?? f.center.lon;
+      const lat = f.lat ?? f.center.lat, lon = f.lon ?? f.center.lon;
       const bearing = (Math.atan2(lon - userPos.lng, lat - userPos.lat) * 180) / Math.PI;
       const relative = bearing - heading;
       const dist = userPos.distanceTo(L.latLng(lat, lon));
-      return { angle: relative, dist };
+      return {angle: relative, dist};
     }).sort((a, b) => a.dist - b.dist).slice(0, 3);
 
     data.forEach((d, i) => {
-      const rad = (d.angle * Math.PI) / 180;
+      const rad = d.angle * Math.PI / 180;
       const x = canvas.width / 2 + Math.sin(rad) * 100;
       const y = canvas.height / 2 - Math.cos(rad) * 100 * ((i + 1) / 1.5);
       ctx.beginPath();
       ctx.moveTo(canvas.width / 2, canvas.height / 2);
       ctx.lineTo(x, y);
-      ctx.strokeStyle = 'rgba(0, 123, 255, 0.7)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)';
       ctx.lineWidth = 4;
       ctx.stroke();
     });
+
     if (data[0]) {
       info.textContent = `${Math.round(data[0].dist)} m to nearest water`;
+    } else {
+      info.textContent = '';
     }
   }
 });
