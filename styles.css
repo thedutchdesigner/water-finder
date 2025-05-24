@@ -24,7 +24,7 @@ html, body {
   top: 15px;
   right: 15px;
   z-index: 10000; /* Ensure it's above map and AR view */
-  background: red; /* You can change this color now! */
+  background: green; /* You can change this color now! */
   border: 1px solid #ccc;
   border-radius: 50%; /* Make it circular */
   padding: 10px;
