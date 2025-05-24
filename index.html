@@ -1,78 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <title>Water Finder</title>
-
   <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"/>
   <!-- MarkerCluster CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
-  <!-- A-Frame + AR.js -->
-  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/ar.js@4.2.1/aframe/build/aframe-ar.js"></script>
-
-  <link rel="stylesheet" href="styles.css" />
-  <link rel="icon" href="icon-192.png" sizes="192x192" type="image/png" />
-
-  <style>
-    #map { position:absolute; top:0; bottom:0; left:0; right:0; }
-    #ar-button {
-      position: absolute;
-      bottom: 10px; right: 10px;
-      z-index: 1000;
-      background-color: #1976d2;
-      color: white;
-      border: none;
-      border-radius: 50%;
-      width: 48px; height: 48px;
-      font-size: 24px; line-height: 48px;
-      text-align: center; cursor: pointer;
-      box-shadow: 0 0 5px rgba(0,0,0,0.3);
-    }
-    #arSceneContainer {
-      display: none;
-      position: absolute; top: 0; left: 0;
-      width:100%; height:100%;
-      z-index:1001;
-    }
-    #ar-exit-button {
-      display: none;
-      position: absolute; top: 10px; left: 10px;
-      z-index: 1002;
-      background-color: rgba(255,255,255,0.9);
-      border: none; border-radius: 50%;
-      width: 36px; height: 36px;
-      font-size: 20px; line-height: 36px;
-      text-align: center; cursor: pointer;
-      box-shadow: 0 0 5px rgba(0,0,0,0.3);
-    }
-    a-scene { width: 100%; height: 100%; }
-  </style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css"/>
+  <link rel="stylesheet" href="styles.css"/>
 </head>
 <body>
   <div id="map"></div>
-  <button id="ar-button" title="Enter AR">📷</button>
-  <div id="arSceneContainer">
-    <button id="ar-exit-button" title="Exit AR">✕</button>
-    <!-- AR scene will be injected here -->
+  <button id="ar-button" title="AR View">📷</button>
+  <div id="ar-view">
+    <video id="camera-video" autoplay muted playsinline webkit-playsinline></video>
+    <canvas id="camera-overlay"></canvas>
+    <button id="exit-ar" title="Close AR">✕</button>
+    <div id="distance-info"></div>
   </div>
-
   <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js" defer></script>
   <!-- MarkerCluster JS -->
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js" defer></script>
-
-  <!-- App logic -->
   <script src="app.js" defer></script>
-
-  <!-- Service Worker -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('service-worker.js');
-    }
-  </script>
 </body>
 </html>
