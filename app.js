@@ -1,8 +1,9 @@
 // app.js - Leaflet map + AR.js toggling for location-based AR
 
 document.addEventListener('DOMContentLoaded', () => {
-  // 1. Initialize Leaflet map
-  const map = L.map('map').setView([0, 0], 2);
+  // Leaflet map initialization
+  const mapContainer = document.getElementById('map');
+  const map = L.map(mapContainer).setView([0, 0], 2);
   L.tileLayer(
     'https://cartodb-basemaps-a.global.ssl.fastly.net/light_nolabels/{z}/{x}/{y}.png',
     { maxZoom: 19, attribution: '© OpenStreetMap contributors © CartoDB' }
@@ -10,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const markersCluster = L.markerClusterGroup({ maxClusterRadius: 50 });
   map.addLayer(markersCluster);
 
-  // 2. Location fetching
+  // Location fetching
   let locationMarker;
   map.locate({ setView: true, maxZoom: 16 });
   map.on('locationfound', e => {
@@ -20,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   map.on('locationerror', () => console.error('Location error'));
 
-  // 3. Debounced bounding-box fetch
+  // Debounced bounding-box fetch
   let fetchTimeout;
   const bboxCache = new Map();
   map.on('moveend', () => {
@@ -37,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 500);
   });
 
+  // Overpass fetches
   async function fetchNearby(lat, lon, radius) {
     const q = `[out:json][timeout:15];node["amenity"="drinking_water"](around:${radius},${lat},${lon});out center;`;
     try {
@@ -45,7 +47,6 @@ document.addEventListener('DOMContentLoaded', () => {
       renderMarkers(data.elements);
     } catch (err) { console.error(err); }
   }
-
   async function fetchFountains(bounds, key) {
     const q = `[out:json][timeout:25];(` +
       `node["amenity"="drinking_water"](${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()});` +
@@ -64,8 +65,9 @@ document.addEventListener('DOMContentLoaded', () => {
     markersCluster.clearLayers();
     window._fountains = elements;
     elements.forEach(el => {
-      const lat = el.lat ?? el.center?.lat, lon = el.lon ?? el.center?.lon;
-      if (lat==null||lon==null) return;
+      const lat = el.lat ?? el.center?.lat;
+      const lon = el.lon ?? el.center?.lon;
+      if (!lat || !lon) return;
       const name = el.tags?.name || 'Drinking water';
       markersCluster.addLayer(
         L.marker([lat, lon]).bindPopup(
@@ -80,23 +82,24 @@ document.addEventListener('DOMContentLoaded', () => {
     const url = isIOS
       ? `maps://maps.apple.com/?daddr=${lat},${lon}`
       : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
-    window.open(url, '_blank');
+    window.open(url,'_blank');
   };
 
-  // 4. AR.js toggling
+  // AR.js toggling
   const arBtn = document.getElementById('ar-button');
   const arSceneCont = document.getElementById('arSceneContainer');
   const exitBtn = document.getElementById('ar-exit-button');
   const scene = document.getElementById('ar-scene');
 
-  arBtn.addEventListener('click', () => {
-    document.getElementById('map').style.display = 'none';
+  function enterAR() {
+    mapContainer.style.display = 'none';
     arBtn.style.display = 'none';
     arSceneCont.style.display = 'block';
     // add entities
     (window._fountains || []).forEach(f => {
-      const lat = f.lat ?? f.center?.lat, lon = f.lon ?? f.center?.lon;
-      if (lat==null||lon==null) return;
+      const lat = f.lat ?? f.center?.lat;
+      const lon = f.lon ?? f.center?.lon;
+      if (!lat || !lon) return;
       const entity = document.createElement('a-entity');
       entity.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lon};`);
       entity.setAttribute('geometry', 'primitive: cone; radiusBottom: 0; radiusTop: 1; height: 2');
@@ -105,14 +108,15 @@ document.addEventListener('DOMContentLoaded', () => {
       entity.classList.add('ar-fountain');
       scene.appendChild(entity);
     });
-  });
+  }
 
-  exitBtn.addEventListener('click', () => {
-    document.getElementById('map').style.display = 'block';
+  function exitAR() {
+    mapContainer.style.display = 'block';
     arBtn.style.display = 'block';
     arSceneCont.style.display = 'none';
-    // remove entities
     scene.querySelectorAll('.ar-fountain').forEach(e => e.remove());
-  });
+  }
 
+  arBtn.addEventListener('click', enterAR);
+  exitBtn.addEventListener('click', exitAR);
 });
