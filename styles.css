@@ -3,7 +3,7 @@ html, body {
   height: 100%;
   margin: 0;
   padding: 0;
-  font-family: Arial, sans-serif; /* Added a default font */
+  font-family: Arial, sans-serif;
   overflow: hidden; /* Prevent scrolling of the page if map is full screen */
 }
 
@@ -77,7 +77,7 @@ html, body {
   max-width: 90%;
 }
 
-#exit-ar { /* Added from index.html */
+#exit-ar {
   position: fixed; /* Use fixed to stay on top regardless of scrolling */
   top: 15px;
   left: 15px;
