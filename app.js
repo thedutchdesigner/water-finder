@@ -1,7 +1,7 @@
-// app.js - Leaflet map + AR.js toggling for location-based AR
+// app.js - Leaflet map + dynamic AR.js scene injection
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Leaflet map initialization
+  // --- Leaflet Map Setup ---
   const mapContainer = document.getElementById('map');
   const map = L.map(mapContainer).setView([0, 0], 2);
   L.tileLayer(
@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const markersCluster = L.markerClusterGroup({ maxClusterRadius: 50 });
   map.addLayer(markersCluster);
 
-  // Location fetching
+  // Location & Overpass fetching
   let locationMarker;
   map.locate({ setView: true, maxZoom: 16 });
   map.on('locationfound', e => {
@@ -21,7 +21,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   map.on('locationerror', () => console.error('Location error'));
 
-  // Debounced bounding-box fetch
   let fetchTimeout;
   const bboxCache = new Map();
   map.on('moveend', () => {
@@ -38,15 +37,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 500);
   });
 
-  // Overpass fetches
   async function fetchNearby(lat, lon, radius) {
     const q = `[out:json][timeout:15];node["amenity"="drinking_water"](around:${radius},${lat},${lon});out center;`;
     try {
-      const r = await fetch('https://overpass-api.de/api/interpreter', { method:'POST', body:q });
-      const data = await r.json();
+      const resp = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: q });
+      const data = await resp.json();
       renderMarkers(data.elements);
     } catch (err) { console.error(err); }
   }
+
   async function fetchFountains(bounds, key) {
     const q = `[out:json][timeout:25];(` +
       `node["amenity"="drinking_water"](${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()});` +
@@ -54,8 +53,8 @@ document.addEventListener('DOMContentLoaded', () => {
       `relation["amenity"="drinking_water"](${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()});` +
     `);out center;`;
     try {
-      const r = await fetch('https://overpass-api.de/api/interpreter', { method:'POST', body:q });
-      const data = await r.json();
+      const resp = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: q });
+      const data = await resp.json();
       bboxCache.set(key, data.elements);
       renderMarkers(data.elements);
     } catch (err) { console.error(err); }
@@ -78,24 +77,36 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   window.navigate = (lat, lon) => {
-    const isIOS = /iP(hone|ad|od)/.test(navigator.platform);
-    const url = isIOS
+    const url = /iP(hone|ad|od)/.test(navigator.platform)
       ? `maps://maps.apple.com/?daddr=${lat},${lon}`
       : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
     window.open(url,'_blank');
   };
 
-  // AR.js toggling
+  // --- AR.js Logic ---
   const arBtn = document.getElementById('ar-button');
-  const arSceneCont = document.getElementById('arSceneContainer');
+  const arContainer = document.getElementById('arSceneContainer');
   const exitBtn = document.getElementById('ar-exit-button');
-  const scene = document.getElementById('ar-scene');
 
   function enterAR() {
     mapContainer.style.display = 'none';
     arBtn.style.display = 'none';
-    arSceneCont.style.display = 'block';
-    // add entities
+    arContainer.style.display = 'block';
+    exitBtn.style.display = 'block';
+
+    // Create AR.js scene
+    const scene = document.createElement('a-scene');
+    scene.setAttribute('embedded', '');
+    scene.setAttribute('arjs', 'sourceType: webcam;gpsMinDistance:2;debugUIEnabled:false');
+    scene.id = 'ar-scene';
+
+    // Camera
+    const cameraEl = document.createElement('a-camera');
+    cameraEl.setAttribute('gps-camera', '');
+    cameraEl.setAttribute('rotation-reader', '');
+    scene.appendChild(cameraEl);
+
+    // Add fountain entities
     (window._fountains || []).forEach(f => {
       const lat = f.lat ?? f.center?.lat;
       const lon = f.lon ?? f.center?.lon;
@@ -108,13 +119,17 @@ document.addEventListener('DOMContentLoaded', () => {
       entity.classList.add('ar-fountain');
       scene.appendChild(entity);
     });
+
+    arContainer.appendChild(scene);
   }
 
   function exitAR() {
-    mapContainer.style.display = 'block';
+    document.getElementById('map').style.display = 'block';
     arBtn.style.display = 'block';
-    arSceneCont.style.display = 'none';
-    scene.querySelectorAll('.ar-fountain').forEach(e => e.remove());
+    arContainer.style.display = 'none';
+    exitBtn.style.display = 'none';
+    const scene = document.getElementById('ar-scene');
+    if (scene) scene.remove();
   }
 
   arBtn.addEventListener('click', enterAR);
