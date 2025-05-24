@@ -52,3 +52,9 @@ html, body {
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(0,0,0,0.3);
 }
+/* Remove default borders/shadows from Leaflet markers */
+.leaflet-marker-icon,
+.leaflet-marker-icon img {
+  border: none !important;
+  box-shadow: none !important;
+}
