@@ -1,137 +1,93 @@
-// app.js - Leaflet map + dynamic AR.js scene injection
+// app.js - Revised AR.js integration with static scene
 
 document.addEventListener('DOMContentLoaded', () => {
-  // --- Leaflet Map Setup ---
-  const mapContainer = document.getElementById('map');
-  const map = L.map(mapContainer).setView([0, 0], 2);
+  // Leaflet map setup...
+  const mapDiv = document.getElementById('map');
+  const map = L.map(mapDiv).setView([0,0],2);
   L.tileLayer(
     'https://cartodb-basemaps-a.global.ssl.fastly.net/light_nolabels/{z}/{x}/{y}.png',
-    { maxZoom: 19, attribution: '© OpenStreetMap contributors © CartoDB' }
+    { maxZoom:19, attribution:'© OpenStreetMap contributors © CartoDB' }
   ).addTo(map);
-  const markersCluster = L.markerClusterGroup({ maxClusterRadius: 50 });
-  map.addLayer(markersCluster);
+  const markersCluster = L.markerClusterGroup({ maxClusterRadius:50 }).addTo(map);
 
-  // Location & Overpass fetching
+  // Fetch fountains logic...
   let locationMarker;
-  map.locate({ setView: true, maxZoom: 16 });
+  map.locate({ setView:true, maxZoom:16 });
   map.on('locationfound', e => {
-    if (locationMarker) map.removeLayer(locationMarker);
-    locationMarker = L.circleMarker(e.latlng, { radius: 8, color: 'blue' }).addTo(map);
-    fetchNearby(e.latlng.lat, e.latlng.lng, 1000);
+    if(locationMarker) map.removeLayer(locationMarker);
+    locationMarker = L.circleMarker(e.latlng,{radius:8,color:'blue'}).addTo(map);
+    fetchNearby(e.latlng.lat,e.latlng.lng,1000);
   });
-  map.on('locationerror', () => console.error('Location error'));
 
+  map.on('locationerror', ()=>console.error('Location error'));
   let fetchTimeout;
   const bboxCache = new Map();
-  map.on('moveend', () => {
+  map.on('moveend', ()=>{
     clearTimeout(fetchTimeout);
-    fetchTimeout = setTimeout(() => {
+    fetchTimeout = setTimeout(()=>{
       const b = map.getBounds();
-      const key = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()]
-        .map(v => v.toFixed(3)).join(',');
-      if (bboxCache.has(key)) {
-        renderMarkers(bboxCache.get(key));
-      } else {
-        fetchFountains(b, key);
-      }
-    }, 500);
+      const key = [b.getSouth(),b.getWest(),b.getNorth(),b.getEast()]
+        .map(v=>v.toFixed(3)).join(',');
+      if(bboxCache.has(key)) renderMarkers(bboxCache.get(key));
+      else fetchFountains(b,key);
+    },500);
   });
 
-  async function fetchNearby(lat, lon, radius) {
-    const q = `[out:json][timeout:15];node["amenity"="drinking_water"](around:${radius},${lat},${lon});out center;`;
-    try {
-      const resp = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: q });
-      const data = await resp.json();
-      renderMarkers(data.elements);
-    } catch (err) { console.error(err); }
+  async function fetchNearby(lat,lon,radius){
+    const q = \`[out:json][timeout:15];node["amenity"="drinking_water"](around:\${radius},\${lat},\${lon});out center;\`;
+    try{let r=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:q});
+      let d=await r.json();renderMarkers(d.elements);
+    }catch(e){console.error(e);}
   }
-
-  async function fetchFountains(bounds, key) {
-    const q = `[out:json][timeout:25];(` +
-      `node["amenity"="drinking_water"](${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()});` +
-      `way["amenity"="drinking_water"](${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()});` +
-      `relation["amenity"="drinking_water"](${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()});` +
-    `);out center;`;
-    try {
-      const resp = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: q });
-      const data = await resp.json();
-      bboxCache.set(key, data.elements);
-      renderMarkers(data.elements);
-    } catch (err) { console.error(err); }
+  async function fetchFountains(bounds,key){
+    const q = \`[out:json][timeout:25];(\`+
+      \`node["amenity"="drinking_water"](\${bounds.getSouth()},\${bounds.getWest()},\${bounds.getNorth()},\${bounds.getEast()});\`+
+      \`way["amenity"="drinking_water"](\${bounds.getSouth()},\${bounds.getWest()},\${bounds.getNorth()},\${bounds.getEast()});\`+
+      \`relation["amenity"="drinking_water"](\${bounds.getSouth()},\${bounds.getWest()},\${bounds.getNorth()},\${bounds.getEast()});\`+
+      \`);out center;\`;
+    try{let r=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:q});
+      let d=await r.json();bboxCache.set(key,d.elements);renderMarkers(d.elements);
+    }catch(e){console.error(e);}
   }
-
-  function renderMarkers(elements) {
-    markersCluster.clearLayers();
-    window._fountains = elements;
-    elements.forEach(el => {
-      const lat = el.lat ?? el.center?.lat;
-      const lon = el.lon ?? el.center?.lon;
-      if (!lat || !lon) return;
-      const name = el.tags?.name || 'Drinking water';
-      markersCluster.addLayer(
-        L.marker([lat, lon]).bindPopup(
-          `<strong>${name}</strong><br/><button onclick="navigate(${lat},${lon})">Navigate</button>`
-        )
-      );
+  function renderMarkers(el){markersCluster.clearLayers();
+    window._fountains = el;el.forEach(f=>{
+      let lat=f.lat||f.center&&f.center.lat,lon=f.lon||f.center&&f.center.lon;
+      if(!lat||!lon)return;
+      markersCluster.addLayer(L.marker([lat,lon]).bindPopup(
+        \`<strong>\${f.tags&&f.tags.name||'Drinking water'}</strong><br/><button onclick="navigate(\${lat},\${lon})">Navigate</button>\`
+      ));
     });
   }
-
-  window.navigate = (lat, lon) => {
+  window.navigate=(lat,lon)=>{
     const url = /iP(hone|ad|od)/.test(navigator.platform)
-      ? `maps://maps.apple.com/?daddr=${lat},${lon}`
-      : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
+      ? \`maps://maps.apple.com/?daddr=\${lat},\${lon}\`
+      : \`https://www.google.com/maps/dir/?api=1&destination=\${lat},\${lon}\`;
     window.open(url,'_blank');
   };
 
-  // --- AR.js Logic ---
-  const arBtn = document.getElementById('ar-button');
-  const arContainer = document.getElementById('arSceneContainer');
-  const exitBtn = document.getElementById('ar-exit-button');
+  // AR toggling
+  const arBtn=document.getElementById('ar-button');
+  const arContainer=document.getElementById('arSceneContainer');
+  const exitBtn=document.getElementById('ar-exit-button');
+  const scene=document.getElementById('ar-scene');
 
-  function enterAR() {
-    mapContainer.style.display = 'none';
-    arBtn.style.display = 'none';
-    arContainer.style.display = 'block';
-    exitBtn.style.display = 'block';
-
-    // Create AR.js scene
-    const scene = document.createElement('a-scene');
-    scene.setAttribute('embedded', '');
-    scene.setAttribute('arjs', 'sourceType: webcam;gpsMinDistance:2;debugUIEnabled:false');
-    scene.id = 'ar-scene';
-
-    // Camera
-    const cameraEl = document.createElement('a-camera');
-    cameraEl.setAttribute('gps-camera', '');
-    cameraEl.setAttribute('rotation-reader', '');
-    scene.appendChild(cameraEl);
-
-    // Add fountain entities
-    (window._fountains || []).forEach(f => {
-      const lat = f.lat ?? f.center?.lat;
-      const lon = f.lon ?? f.center?.lon;
-      if (!lat || !lon) return;
-      const entity = document.createElement('a-entity');
-      entity.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lon};`);
-      entity.setAttribute('geometry', 'primitive: cone; radiusBottom: 0; radiusTop: 1; height: 2');
-      entity.setAttribute('material', 'color: blue; opacity: 0.8');
-      entity.setAttribute('look-at', '[gps-camera]');
-      entity.classList.add('ar-fountain');
-      scene.appendChild(entity);
+  arBtn.addEventListener('click',()=>{
+    mapDiv.style.display='none';arBtn.style.display='none';arContainer.style.display='block';exitBtn.style.display='block';
+    // create entities
+    (window._fountains||[]).forEach(f=>{
+      let lat=f.lat||f.center&&f.center.lat,lon=f.lon||f.center&&f.center.lon;
+      if(!lat||!lon)return;
+      const e=document.createElement('a-entity');
+      e.setAttribute('gps-entity-place',\`latitude:\${lat};longitude:\${lon};\`);
+      e.setAttribute('geometry','primitive: cone; radiusBottom:0; radiusTop:1; height:2');
+      e.setAttribute('material','color:blue;opacity:0.8');
+      e.setAttribute('look-at','[gps-camera]');
+      e.classList.add('ar-fountain');
+      scene.appendChild(e);
     });
-
-    arContainer.appendChild(scene);
-  }
-
-  function exitAR() {
-    document.getElementById('map').style.display = 'block';
-    arBtn.style.display = 'block';
-    arContainer.style.display = 'none';
-    exitBtn.style.display = 'none';
-    const scene = document.getElementById('ar-scene');
-    if (scene) scene.remove();
-  }
-
-  arBtn.addEventListener('click', enterAR);
-  exitBtn.addEventListener('click', exitAR);
+  });
+  exitBtn.addEventListener('click',()=>{
+    mapDiv.style.display='block';arBtn.style.display='block';arContainer.style.display='none';exitBtn.style.display='none';
+    scene.querySelectorAll('.ar-fountain').forEach(el=>el.remove());
+  });
 });

@@ -44,15 +44,25 @@
   <button id="ar-button" title="Enter AR">📸</button>
   <div id="arSceneContainer">
     <button id="ar-exit-button" title="Exit AR">✕</button>
-    <!-- AR.js scene will be injected here -->
+    <!-- Pre-defined AR.js scene, hidden by default -->
+    <a-scene id="ar-scene"
+      embedded
+      vr-mode-ui="enabled: false"
+      arjs="sourceType: webcam;gpsMinDistance:2;debugUIEnabled:false"
+      style="position:absolute; top:0; left:0; width:100%; height:100%;"
+    >
+      <a-camera gps-camera rotation-reader></a-camera>
+    </a-scene>
   </div>
 
   <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js" defer></script>
   <!-- MarkerCluster JS -->
-  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js" defer></script>
+
   <!-- App logic -->
   <script src="app.js" defer></script>
+
   <!-- Service Worker -->
   <script>
     if ('serviceWorker' in navigator) {
