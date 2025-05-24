@@ -1,60 +1,53 @@
-/* styles.css */
-
-html, body {
+/* Suggested additions to styles.css */
+html, body, #map {
   height: 100%;
   margin: 0;
   padding: 0;
-  /* Support iPhone notch safe area */
-  padding-top: env(safe-area-inset-top);
-  padding-right: env(safe-area-inset-right);
-  padding-bottom: env(safe-area-inset-bottom);
-  padding-left: env(safe-area-inset-left);
+  font-family: Arial, sans-serif; /* Added a default font */
 }
 
-#map {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  right: 0;
-}
-
+/* Styles moved from index.html and improved */
 #ar-button {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 1000;
+  position: fixed; /* Use fixed if you want it to stay even if body somehow scrolls */
+  top: 15px;
+  right: 15px;
+  z-index: 10000; /* Ensure it's above map and AR view */
   background: white;
-  border: none;
-  border-radius: 4px;
-  padding: 8px;
-  box-shadow: 0 0 5px rgba(0,0,0,0.3);
+  border: 1px solid #ccc;
+  border-radius: 50%; /* Make it circular */
+  padding: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
   cursor: pointer;
+  font-size: 1.5em; /* Make emoji icon larger */
+  width: 44px; /* Explicit size */
+  height: 44px; /* Explicit size */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#ar-button:hover {
+  background-color: #f0f0f0;
 }
 
 #ar-view {
   display: none;
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1001;
+  position: fixed; /* Use fixed to cover the whole screen */
+  top:0; left:0; width:100%; height:100%;
+  z-index: 9999; /* Below AR button, above map */
+  background-color: #000; /* Fallback background */
 }
 
 #ar-video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  width:100%;
+  height:100%;
+  object-fit: cover; /* Ensure video covers the area */
 }
 
 #ar-overlay {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
+  top:0; left:0; width:100%; height:100%;
+  pointer-events: none; /* Allow interactions with video if needed, though usually not */
 }
 
 #ar-info {
@@ -62,10 +55,41 @@ html, body {
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0,0,0,0.7);
   color: white;
+  padding: 10px 15px;
+  border-radius: 8px;
+  font-size: 0.9em;
+  z-index: 10001; /* Above AR overlay */
+  text-align: center;
+  max-width: 90%;
+}
+
+/* Style for navigate buttons in popups */
+.nav-button {
   padding: 8px 12px;
+  background-color: #007bff;
+  color: white;
+  border: none;
   border-radius: 4px;
-  font-size: 14px;
-  z-index: 1002;
+  cursor: pointer;
+  font-size: 0.9em;
+  margin-top: 5px;
+}
+
+.nav-button:hover {
+  background-color: #0056b3;
+}
+
+/* Basic loading indicator style (optional) */
+#loading-indicator {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 20px;
+  border-radius: 8px;
+  z-index: 10002; /* Very high z-index */
 }
