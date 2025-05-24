@@ -1,4 +1,4 @@
-// app.js with improved AR support, performance, and orientation permissions
+// app.js with improved AR support, map bug fixes, and performance enhancements
 
 // Pure Leaflet + CartoDB Positron minimal tiles
 const map = L.map('map').setView([0, 0], 2);
@@ -8,22 +8,20 @@ L.tileLayer(
 ).addTo(map);
 
 // Marker cluster group
-// Consider experimenting with maxClusterRadius. Default is 80. 50 is more granular.
-const markersCluster = L.markerClusterGroup({ maxClusterRadius: 60 }); // Adjusted slightly, experiment as needed
+const markersCluster = L.markerClusterGroup({ maxClusterRadius: 60 }); // Experiment with this value
 map.addLayer(markersCluster);
 
 // Location marker
 let locationMarker;
 map.locate({ setView: true, maxZoom: 16 });
 map.on('locationerror', () => {
-  alert('Could not get your location. Please ensure location services are enabled.');
-  // TODO: Add a visual indicator on the page for location error
+  alert('Could not get your location. Please ensure location services are enabled and permissions are granted.');
 });
 map.on('locationfound', (e) => {
   if (locationMarker) map.removeLayer(locationMarker);
-  locationMarker = L.circleMarker(e.latlng, { radius: 8, color: 'blue', fillOpacity: 0.7, stroke: false }).addTo(map);
-  map.setView(e.latlng, 16); // Ensure view is centered and zoomed on new location
-  fetchNearby(e.latlng.lat, e.latlng.lng, 1000); // Fetch for immediate vicinity
+  locationMarker = L.circleMarker(e.latlng, { radius: 8, color: '#007bff', fillColor: '#007bff', fillOpacity: 0.7, stroke: false }).addTo(map);
+  map.setView(e.latlng, 16);
+  fetchNearby(e.latlng.lat, e.latlng.lng, 1000);
 });
 
 // Debounced bbox fetch and cache
@@ -34,39 +32,31 @@ map.on('moveend', () => {
   fetchTimeout = setTimeout(() => {
     const b = map.getBounds();
     const key = [
-      b.getSouth().toFixed(3),
-      b.getWest().toFixed(3),
-      b.getNorth().toFixed(3),
-      b.getEast().toFixed(3)
+      b.getSouth().toFixed(3), b.getWest().toFixed(3),
+      b.getNorth().toFixed(3), b.getEast().toFixed(3)
     ].join(',');
     if (bboxCache.has(key)) {
       renderMarkers(bboxCache.get(key));
     } else {
-      // TODO: Show loading indicator
       fetchFountains(b, key);
     }
   }, 500);
 });
 
-// Overpass small radius fetch
 async function fetchNearby(lat, lon, radius) {
   const query = `[out:json][timeout:15];node["amenity"="drinking_water"](around:${radius},${lat},${lon});out center;`;
-  // TODO: Show loading indicator for nearby fetch if AR is not active or map needs it
   try {
     const resp = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: query });
     if (!resp.ok) throw new Error(`Overpass API error: ${resp.status}`);
     const data = await resp.json();
-    renderMarkers(data.elements); // This will also update window._fountains
+    renderMarkers(data.elements);
   } catch (err) {
     console.error('Overpass radius error', err);
-    // TODO: Hide loading indicator, show error message
   }
 }
 
-// Overpass bbox fetch
 async function fetchFountains(bounds, key) {
   const query = `[out:json][timeout:25];(node["amenity"="drinking_water"](${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()});way["amenity"="drinking_water"](${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()});relation["amenity"="drinking_water"](${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}););out center;`;
-  // TODO: Show loading indicator for bbox fetch
   try {
     const resp = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: query });
     if (!resp.ok) throw new Error(`Overpass API error: ${resp.status}`);
@@ -75,45 +65,55 @@ async function fetchFountains(bounds, key) {
     renderMarkers(data.elements);
   } catch (err) {
     console.error('Overpass bbox error', err);
-    // TODO: Hide loading indicator, show error message
-  } finally {
-    // TODO: Hide loading indicator regardless of success/failure
   }
 }
 
-// Render markers and store for AR
 function renderMarkers(elements) {
   markersCluster.clearLayers();
-  window._fountains = elements || []; // Ensure _fountains is always an array
+  window._fountains = elements || [];
   (elements || []).forEach((el) => {
     const lat = el.lat ?? el.center?.lat;
     const lon = el.lon ?? el.center?.lon;
     if (lat == null || lon == null) return;
     const name = el.tags?.name || 'Drinking water';
+    // Note: data-lat and data-lon are strings here, will be parsed in navigate
     const popupContent = `<strong>${name}</strong><br/><button class="nav-button" data-lat="${lat}" data-lon="${lon}">Navigate</button>`;
     markersCluster.addLayer(
       L.marker([lat, lon]).bindPopup(popupContent)
     );
   });
-  // Add event listener for navigate buttons (event delegation)
-  document.getElementById('map').addEventListener('click', function(event) {
-    if (event.target && event.target.classList.contains('nav-button')) {
-      const lat = event.target.getAttribute('data-lat');
-      const lon = event.target.getAttribute('data-lon');
-      navigate(lat, lon);
-    }
-  });
 }
 
-// Navigate handler
-window.navigate = (lat, lon) => {
+// Navigate handler - attached ONCE via event delegation later
+window.navigate = (lat, lon) => { // Expects lat, lon to be numbers
   const isIOS = /iP(hone|od|ad)/.test(navigator.platform);
-  // More standard Google Maps URL
-  const url = isIOS
-    ? `maps://maps.apple.com/?daddr=${lat},${lon}&dirflg=w` // Added walking directions flag
-    : `https://www.google.com/maps?daddr=${lat},${lon}&dirflg=w`; // Added walking directions flag for Google Maps
-  window.open(url, '_blank');
+  const appleUrl = `maps://maps.apple.com/?daddr=${lat},${lon}&dirflg=w`;
+  const googleUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=walking`;
+  const finalUrl = isIOS ? appleUrl : googleUrl;
+  window.open(finalUrl, '_blank');
 };
+
+// Attach navigate button listener using event delegation ONCE after map is ready
+// Ensure map element is available
+if (document.getElementById('map')) {
+    document.getElementById('map').addEventListener('click', function(event) {
+      let target = event.target;
+      // Traverse up the DOM if the click was on an element inside the button
+      while (target && target !== this && !target.classList.contains('nav-button')) {
+        target = target.parentNode;
+      }
+      if (target && target.classList.contains('nav-button')) {
+        const latStr = target.getAttribute('data-lat');
+        const lonStr = target.getAttribute('data-lon');
+        if (latStr && lonStr) {
+            navigate(parseFloat(latStr), parseFloat(lonStr));
+        } else {
+            console.error("Navigate button clicked without lat/lon data attributes.");
+        }
+      }
+    });
+}
+
 
 // AR functionality
 const arBtn = document.getElementById('ar-button');
@@ -124,93 +124,126 @@ const arInfo = document.getElementById('ar-info');
 
 let arStream, deviceOrientationWatcher, animationFrameId;
 let currentHeading = 0;
-// let currentPitch = 0; // For future use if more advanced vertical projection is added
 
-const HFOV_DEGREES = 75; // Approximate horizontal field of view for AR
-const MAX_AR_DISTANCE = 1000; // Max distance (meters) to show fountains in AR
+const HFOV_DEGREES = 75;
+const MAX_AR_DISTANCE = 1000;
 
 arBtn.addEventListener('click', async () => {
   if (arView.style.display === 'none') {
-    // Show AR view
-    arCanvas.width = window.innerWidth;
-    arCanvas.height = window.innerHeight;
     try {
+      console.log('AR: Attempting to start AR mode.');
+      arCanvas.width = window.innerWidth;
+      arCanvas.height = window.innerHeight;
+      console.log('AR: Canvas resized.');
+
+      console.log('AR: Requesting camera access...');
       arStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      console.log('AR: Camera access granted.');
       arVideo.srcObject = arStream;
-      await arVideo.play(); // Ensure video plays before starting AR logic
+      
+      console.log('AR: Attempting to play video...');
+      await arVideo.play();
+      console.log('AR: Video playing.');
 
       if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        console.log('AR: Requesting orientation permission (iOS)...');
         const permissionState = await DeviceOrientationEvent.requestPermission();
+        console.log('AR: Orientation permission state:', permissionState);
         if (permissionState !== 'granted') {
-          throw new Error('Orientation permission not granted.');
+          throw new Error('Orientation permission not granted by user.');
         }
       }
       
-      startAR();
-      arView.style.display = 'block'; // Display AR view only after setup
-      document.body.style.overflow = 'hidden'; // Prevent scrolling while AR is active
+      console.log('AR: Calling startAR()...');
+      startAR(); // This can throw 'Device orientation not supported.'
+      console.log('AR: startAR() completed.');
+
+      arView.style.display = 'block';
+      console.log('AR: View displayed.');
+      document.body.style.overflow = 'hidden';
     } catch (e) {
-      console.error('AR initialization error:', e);
-      alert(`AR mode not available: ${e.message}. Ensure camera and motion sensor access is allowed.`);
-      stopAR(); // Clean up
+      console.error('AR initialization error:', e.name, e.message, e);
+      alert(`AR mode not available: ${e.message}. Check console for details. Ensure camera and motion sensor access is allowed.`);
+      stopAR();
     }
   } else {
-    // Exit AR view
+    console.log('AR: Stopping AR mode.');
     stopAR();
   }
 });
 
 function deviceOrientationHandler(event) {
-  // Prefer `alpha` for compass heading, ensure it's absolute
-  if (event.absolute === true || typeof event.webkitCompassHeading !== 'undefined') {
-      currentHeading = event.alpha ?? event.webkitCompassHeading ?? 0;
-      // currentPitch = event.beta ?? 0; // Store pitch if needed later
-  } else {
-    console.warn("Device orientation data is not absolute.");
-    // Fallback or use non-absolute alpha if necessary, but it might be less reliable
-    currentHeading = event.alpha ?? 0; 
+  let newHeadingReported = false;
+  let newHeadingValue = currentHeading;
+
+  if (event.absolute === true && event.alpha !== null && event.alpha !== undefined) {
+    newHeadingValue = event.alpha;
+    newHeadingReported = true;
+  } else if (event.webkitCompassHeading !== null && event.webkitCompassHeading !== undefined) {
+    newHeadingValue = event.webkitCompassHeading;
+    newHeadingReported = true;
+    if (event.absolute === false) {
+        console.warn("AR: Using webkitCompassHeading, but event.absolute is false. Heading might drift.");
+    }
+  } else if (event.alpha !== null && event.alpha !== undefined) {
+    newHeadingValue = event.alpha;
+    newHeadingReported = true;
+    console.warn("AR: Device orientation data is not 'absolute' and no 'webkitCompassHeading'. Using raw 'alpha'. May be unreliable.");
   }
+
+  if (newHeadingReported) {
+    currentHeading = newHeadingValue;
+  }
+  // currentPitch = event.beta ?? 0; // For future use
 }
 
 function startAR() {
-  // Check if DeviceOrientationEvent is supported
   if (window.DeviceOrientationEvent) {
     deviceOrientationWatcher = deviceOrientationHandler;
-    window.addEventListener('deviceorientationabsolute', deviceOrientationWatcher, true);
-    // Fallback for some devices / browsers that don't support 'deviceorientationabsolute'
-    if (typeof DeviceOrientationEvent.requestPermission !== 'function') { // Non-iOS 13+ or already granted
+    // Prefer 'deviceorientationabsolute' if available
+    if ('ondeviceorientationabsolute' in window) {
+        console.log("AR: Listening to 'deviceorientationabsolute'.");
+        window.addEventListener('deviceorientationabsolute', deviceOrientationWatcher, true);
+    } else {
+        console.log("AR: 'deviceorientationabsolute' not available, falling back to 'deviceorientation'.");
         window.addEventListener('deviceorientation', deviceOrientationWatcher, true);
     }
   } else {
+    console.error("AR: Device orientation not supported on this device/browser.");
     throw new Error('Device orientation not supported.');
   }
   
-  // Start the rendering loop
-  if (animationFrameId) cancelAnimationFrame(animationFrameId); // Clear previous loop if any
+  if (animationFrameId) cancelAnimationFrame(animationFrameId);
   arRenderLoop();
   arInfo.textContent = 'Point your camera around...';
 }
 
 function stopAR() {
   arView.style.display = 'none';
-  document.body.style.overflow = ''; // Restore scrolling
+  document.body.style.overflow = '';
 
   if (arStream) {
     arStream.getTracks().forEach(track => track.stop());
     arStream = null;
+    console.log("AR: Camera stream stopped.");
   }
   if (deviceOrientationWatcher) {
-    window.removeEventListener('deviceorientationabsolute', deviceOrientationWatcher);
-    window.removeEventListener('deviceorientation', deviceOrientationWatcher);
+    if ('ondeviceorientationabsolute' in window) {
+        window.removeEventListener('deviceorientationabsolute', deviceOrientationWatcher);
+    } else {
+        window.removeEventListener('deviceorientation', deviceOrientationWatcher);
+    }
     deviceOrientationWatcher = null;
+    console.log("AR: Device orientation watcher removed.");
   }
   if (animationFrameId) {
     cancelAnimationFrame(animationFrameId);
     animationFrameId = null;
+    console.log("AR: Animation frame loop stopped.");
   }
   const ctx = arCanvas.getContext('2d');
-  ctx.clearRect(0, 0, arCanvas.width, arCanvas.height); // Clear canvas on exit
-  arInfo.textContent = 'Finding nearest fountains...'; // Reset info text
+  ctx.clearRect(0, 0, arCanvas.width, arCanvas.height);
+  arInfo.textContent = 'Finding nearest fountains...';
 }
 
 function arRenderLoop() {
@@ -239,7 +272,6 @@ function drawAR(heading) {
       const dist = userPos.distanceTo(fountainPos);
       if (dist > MAX_AR_DISTANCE) return null;
 
-      // Calculate bearing from user to fountain (0-360 deg, North is 0)
       const y = Math.sin(L.Util.degToRad(lon - userPos.lng)) * Math.cos(L.Util.degToRad(lat));
       const x = Math.cos(L.Util.degToRad(userPos.lat)) * Math.sin(L.Util.degToRad(lat)) -
                 Math.sin(L.Util.degToRad(userPos.lat)) * Math.cos(L.Util.degToRad(lat)) * Math.cos(L.Util.degToRad(lon - userPos.lng));
@@ -256,24 +288,15 @@ function drawAR(heading) {
     .slice(0, 3);
 
   const canvasCenterX = arCanvas.width / 2;
-  const canvasBottomY = arCanvas.height - 50; // Origin point for Y projection (near bottom)
-  const projectionMaxY = arCanvas.height * 0.4; // Farthest items go up to this Y
+  const canvasBottomY = arCanvas.height - 50;
+  const projectionMaxY = arCanvas.height * 0.4;
 
-  arFountains.forEach((f, i) => {
-    const angleRad = f.relativeAngle * Math.PI / 180;
-
-    // X position: based on relative angle, spread across the screen width
+  arFountains.forEach((f) => {
     const screenX = canvasCenterX + (f.relativeAngle / (HFOV_DEGREES / 2)) * (canvasCenterX * 0.9);
-
-    // Y position: items further away appear higher (closer to horizon)
-    // Inverse relationship with distance for Y.
-    // yRatio is 1 for 0m distance, 0 for MAX_AR_DISTANCE
     const yRatio = Math.max(0, Math.min(1, 1 - (f.dist / MAX_AR_DISTANCE))); 
     const screenY = canvasBottomY - (yRatio * (canvasBottomY - projectionMaxY));
+    const iconRadius = 8 + (6 * yRatio);
 
-
-    // Draw an icon (circle)
-    const iconRadius = 8 + (6 * yRatio); // Icon size based on proximity
     ctx.fillStyle = 'rgba(0, 123, 255, 0.8)';
     ctx.beginPath();
     ctx.arc(screenX, screenY, iconRadius, 0, 2 * Math.PI);
@@ -283,22 +306,19 @@ function drawAR(heading) {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-
-    // Draw distance text
     ctx.fillStyle = 'white';
     ctx.font = `bold ${10 + (4 * yRatio)}px Arial`;
     ctx.textAlign = 'center';
     ctx.shadowColor = "black";
     ctx.shadowBlur = 3;
-    ctx.fillText(`${Math.round(f.dist)}m`, screenX, screenY + iconRadius + 12 + (2*yRatio));
-    ctx.shadowBlur = 0; // Reset shadow
+    ctx.fillText(`${Math.round(f.dist)}m`, screenX, screenY + iconRadius + 12 + (2 * yRatio));
+    ctx.shadowBlur = 0;
   });
 
   if (arFountains.length > 0) {
     const nearestVisible = arFountains[0];
     arInfo.textContent = `${Math.round(nearestVisible.dist)}m to ${nearestVisible.name}.`;
   } else {
-    // Check if any fountains are loaded but not in FOV
     const allLoadedFountains = (window._fountains || [])
         .map(f => {
             const lat = f.lat ?? f.center?.lat;
@@ -306,16 +326,16 @@ function drawAR(heading) {
             if (lat == null || lon == null) return null;
             return { dist: userPos.distanceTo(L.latLng(lat, lon)) };
         })
-        .filter(f => f !== null)
+        .filter(f => f !== null && f.dist <= MAX_AR_DISTANCE) // Only consider those within AR range
         .sort((a,b) => a.dist - b.dist);
     
-    if (allLoadedFountains.length > 0 && allLoadedFountains[0].dist <= MAX_AR_DISTANCE) {
+    if (allLoadedFountains.length > 0) {
         arInfo.textContent = `Nearest fountain ${Math.round(allLoadedFountains[0].dist)}m. Turn camera.`;
-    } else if (allLoadedFountains.length > 0 && allLoadedFountains[0].dist > MAX_AR_DISTANCE) {
-        arInfo.textContent = "No fountains within AR range. Move map or walk closer.";
+    } else if (window._fountains.length > 0) { // Fountains are loaded, but all too far for AR
+        arInfo.textContent = "Fountains found, but > " + MAX_AR_DISTANCE + "m away. Try map.";
     }
     else {
-        arInfo.textContent = "No fountains loaded. Check map.";
+        arInfo.textContent = "No fountains loaded. Check map or move.";
     }
   }
 }
