@@ -44,7 +44,7 @@ map.on('moveend', () => {
 });
 
 async function fetchNearby(lat, lon, radius) {
-  const query = `[out:json][timeout:15];node["amenity"="drinking_water"](around:${radius},${lat},${lon});out center;`;
+  const query = `[out:json][timeout:15];node["amenity"="drinking_water"](around:<span class="math-inline">\{radius\},</span>{lat},${lon});out center;`;
   try {
     const resp = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: query });
     if (!resp.ok) throw new Error(`Overpass API error: ${resp.status}`);
@@ -56,7 +56,7 @@ async function fetchNearby(lat, lon, radius) {
 }
 
 async function fetchFountains(bounds, key) {
-  const query = `[out:json][timeout:25];(node["amenity"="drinking_water"](${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()});way["amenity"="drinking_water"](${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()});relation["amenity"="drinking_water"](${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}););out center;`;
+  const query = `[out:json][timeout:25];(node["amenity"="drinking_water"](<span class="math-inline">\{bounds\.getSouth\(\)\},</span>{bounds.getWest()},<span class="math-inline">\{bounds\.getNorth\(\)\},</span>{bounds.getEast()});way["amenity"="drinking_water"](<span class="math-inline">\{bounds\.getSouth\(\)\},</span>{bounds.getWest()},<span class="math-inline">\{bounds\.getNorth\(\)\},</span>{bounds.getEast()});relation["amenity"="drinking_water"](<span class="math-inline">\{bounds\.getSouth\(\)\},</span>{bounds.getWest()},<span class="math-inline">\{bounds\.getNorth\(\)\},</span>{bounds.getEast()}););out center;`;
   try {
     const resp = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: query });
     if (!resp.ok) throw new Error(`Overpass API error: ${resp.status}`);
@@ -77,7 +77,7 @@ function renderMarkers(elements) {
     if (lat == null || lon == null) return;
     const name = el.tags?.name || 'Drinking water';
     // Note: data-lat and data-lon are strings here, will be parsed in navigate
-    const popupContent = `<strong>${name}</strong><br/><button class="nav-button" data-lat="${lat}" data-lon="${lon}">Navigate</button>`;
+    const popupContent = `<strong><span class="math-inline">\{name\}</strong\><br/\><button class\="nav\-button" data\-lat\="</span>{lat}" data-lon="${lon}">Navigate</button>`;
     markersCluster.addLayer(
       L.marker([lat, lon]).bindPopup(popupContent)
     );
@@ -87,8 +87,8 @@ function renderMarkers(elements) {
 // Navigate handler - attached ONCE via event delegation later
 window.navigate = (lat, lon) => { // Expects lat, lon to be numbers
   const isIOS = /iP(hone|od|ad)/.test(navigator.platform);
-  const appleUrl = `maps://maps.apple.com/?daddr=${lat},${lon}&dirflg=w`;
-  const googleUrl = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=walking`;
+  const appleUrl = `maps://maps.apple.com/?daddr=<span class="math-inline">\{lat\},</span>{lon}&dirflg=w`;
+  const googleUrl = `http://maps.google.com/maps?daddr=<span class="math-inline">\{lat\},</span>{lon}&travelmode=walking`; // Corrected Google Maps URL
   const finalUrl = isIOS ? appleUrl : googleUrl;
   window.open(finalUrl, '_blank');
 };
@@ -118,9 +118,10 @@ if (document.getElementById('map')) {
 // AR functionality
 const arBtn = document.getElementById('ar-button');
 const arView = document.getElementById('ar-view');
-const arVideo = document.getElementById('ar-video');
-const arCanvas = document.getElementById('ar-overlay');
-const arInfo = document.getElementById('ar-info');
+const arVideo = document.getElementById('ar-video'); // Corrected ID from camera-video
+const arCanvas = document.getElementById('ar-overlay'); // Corrected ID from camera-overlay
+const arInfo = document.getElementById('ar-info'); // Corrected ID from distance-info
+const exitArBtn = document.getElementById('exit-ar'); // Get exit button
 
 let arStream, deviceOrientationWatcher, animationFrameId;
 let currentHeading = 0;
@@ -159,6 +160,7 @@ arBtn.addEventListener('click', async () => {
       console.log('AR: startAR() completed.');
 
       arView.style.display = 'block';
+      exitArBtn.style.display = 'block'; // Show exit button
       console.log('AR: View displayed.');
       document.body.style.overflow = 'hidden';
     } catch (e) {
@@ -171,6 +173,8 @@ arBtn.addEventListener('click', async () => {
     stopAR();
   }
 });
+
+exitArBtn.addEventListener('click', stopAR); // Add event listener for exit button
 
 function deviceOrientationHandler(event) {
   let newHeadingReported = false;
@@ -220,6 +224,7 @@ function startAR() {
 
 function stopAR() {
   arView.style.display = 'none';
+  exitArBtn.style.display = 'none'; // Hide exit button
   document.body.style.overflow = '';
 
   if (arStream) {
@@ -293,7 +298,7 @@ function drawAR(heading) {
 
   arFountains.forEach((f) => {
     const screenX = canvasCenterX + (f.relativeAngle / (HFOV_DEGREES / 2)) * (canvasCenterX * 0.9);
-    const yRatio = Math.max(0, Math.min(1, 1 - (f.dist / MAX_AR_DISTANCE))); 
+    const yRatio = Math.max(0, Math.min(1, 1 - (f.dist / MAX_AR_DISTANCE)));
     const screenY = canvasBottomY - (yRatio * (canvasBottomY - projectionMaxY));
     const iconRadius = 8 + (6 * yRatio);
 
@@ -319,23 +324,4 @@ function drawAR(heading) {
     const nearestVisible = arFountains[0];
     arInfo.textContent = `${Math.round(nearestVisible.dist)}m to ${nearestVisible.name}.`;
   } else {
-    const allLoadedFountains = (window._fountains || [])
-        .map(f => {
-            const lat = f.lat ?? f.center?.lat;
-            const lon = f.lon ?? f.center?.lon;
-            if (lat == null || lon == null) return null;
-            return { dist: userPos.distanceTo(L.latLng(lat, lon)) };
-        })
-        .filter(f => f !== null && f.dist <= MAX_AR_DISTANCE) // Only consider those within AR range
-        .sort((a,b) => a.dist - b.dist);
-    
-    if (allLoadedFountains.length > 0) {
-        arInfo.textContent = `Nearest fountain ${Math.round(allLoadedFountains[0].dist)}m. Turn camera.`;
-    } else if (window._fountains.length > 0) { // Fountains are loaded, but all too far for AR
-        arInfo.textContent = "Fountains found, but > " + MAX_AR_DISTANCE + "m away. Try map.";
-    }
-    else {
-        arInfo.textContent = "No fountains loaded. Check map or move.";
-    }
-  }
-}
+    const allLoadedFountains = (window
