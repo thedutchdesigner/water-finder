@@ -5,21 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <title>Water Finder</title>
   <!-- Leaflet CSS -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
-  />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"/>
   <!-- MarkerCluster CSS -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css"
-  />
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css"
-  />
-  <!-- Supercluster for fast clustering -->
-  <script src="https://unpkg.com/supercluster@7.1.4/dist/supercluster.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css"/>
   <!-- Custom styles -->
   <link rel="stylesheet" href="styles.css"/>
 </head>
@@ -31,11 +20,10 @@
     <button id="exit-ar" title="Exit AR">✕</button>
   </div>
 
-  <!-- Leaflet JS -->
+  <!-- Scripts: load in order -->
+  <script src="https://unpkg.com/supercluster@7.1.4/dist/supercluster.min.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
-  <!-- MarkerCluster JS -->
   <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-  <!-- App logic -->
   <script src="app.js"></script>
 </body>
 </html>
