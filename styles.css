@@ -12,7 +12,7 @@ html, body {
   position: absolute;
   bottom: 10px; right: 10px;
   z-index: 1000;
-  background-color: #D32F2F;
+  background-color: green;
   color: #fff;
   border: none;
   border-radius: 50%;
