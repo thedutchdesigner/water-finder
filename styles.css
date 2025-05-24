@@ -31,13 +31,12 @@ html, body {
   border: 2px solid white;
   border-radius: 50%;
   width: 16px; height: 16px;
+  transition: transform 0.3s, opacity 0.3s;
 }
 /* Cluster icon */
 .cluster-icon {
   background: rgba(0, 121, 211, 0.7);
-  color: white;
-  border-radius: 50%;
-  text-align: center;
-  line-height: 1.5;
-  font-weight: bold;
+  color: white; border-radius: 50%;
+  text-align: center; line-height: 1.5; font-weight: bold;
+  transition: transform 0.3s, opacity 0.3s;
 }
