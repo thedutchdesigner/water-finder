@@ -6,27 +6,35 @@
   <title>Water Finder</title>
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"/>
-  <!-- MarkerCluster CSS -->
+  <!-- MarkerCluster CSS (not used now) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css"/>
   <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css"/>
+  <!-- Supercluster for fast clustering -->
+  <script src="https://unpkg.com/supercluster@7.1.4/dist/supercluster.min.js"></script>
   <!-- Custom styles -->
   <link rel="stylesheet" href="styles.css"/>
+  <style>
+    /* Cluster icon styling */
+    .cluster-icon div {
+      background: rgba(0, 121, 211, 0.7);
+      color: white;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 1.5;
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body>
   <div id="map"></div>
-  <button id="ar-button" title="Camera AR">📷</button>
+  <button id="ar-button" title="Enter AR" style="background-color:#00796B;">📷</button>
   <div id="ar-view">
     <video id="ar-video" autoplay muted playsinline webkit-playsinline></video>
-    <canvas id="ar-overlay"></canvas>
     <button id="exit-ar" title="Exit AR">✕</button>
-    <div id="ar-info">Loading AR...</div>
   </div>
 
-  <!-- Leaflet JS -->
+  <!-- Leaflet & app logic -->
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
-  <!-- MarkerCluster JS -->
-  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-  <!-- App logic -->
   <script src="app.js"></script>
 </body>
 </html>
