@@ -29,11 +29,10 @@ html, body {
 .cluster-icon {
   background:rgba(0,121,211,0.7); color:#fff;
   border-radius:50%; text-align:center; line-height:1.5;
-  font-weight:bold; transition:transform 0.25s, opacity 0.25s;
+  font-weight:bold;
 }
 /* Marker styling */
 .circle-icon {
   background:#1976d2; border:2px solid #fff;
   border-radius:50%; width:16px; height:16px;
-  transition:transform 0.25s, opacity 0.25s;
 }
