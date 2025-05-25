@@ -40,7 +40,7 @@
       zoom: 2
     });
 
-    // Geolocate control to center on user's location
+    // Add geolocate control
     const geo = new maplibregl.GeolocateControl({
       positionOptions: { enableHighAccuracy: true },
       trackUserLocation: true,
@@ -49,11 +49,19 @@
     map.addControl(geo, 'top-left');
 
     map.on('load', () => {
-      // Trigger geolocation on load
+      // Fly to user
       geo.on('geolocate', e => {
         map.flyTo({ center: [e.coords.longitude, e.coords.latitude], zoom: 14 });
       });
-      geo.trigger(); // prompt location
+      geo.trigger();
+
+      // Load pin icon
+      map.loadImage(
+        'https://docs.maplibre.org/maplibre-gl-js/assets/custom_marker.png',
+        (err, img) => {
+          if (!err) map.addImage('pin', img);
+        }
+      );
 
       // Cluster circles with zoom-based colors
       map.addLayer({
@@ -62,22 +70,19 @@
         source: 'water',
         filter: ['has', 'point_count'],
         paint: {
-          // Color transitions based on zoom level
           'circle-color': [
-            'interpolate',
-            ['linear'],
-            ['zoom'],
-            5, '#93c47d',   // Lime Parfait
-            10, '#84b071',  // Sage
-            14, '#769d64',  // Mosslands
-            18, '#678958'   // Tee Off
+            'interpolate', ['linear'], ['zoom'],
+            5, '#84b071',
+            10, '#769d64',
+            14, '#678958',
+            18, '#56784c'
           ],
-          'circle-radius': ['step', ['get','point_count'], 15, 100, 20, 500, 25],
+          'circle-radius': ['step', ['get', 'point_count'], 15, 100, 20, 500, 25],
           'circle-opacity': 0.75
         }
       });
 
-      // Cluster count labels (white for contrast)
+      // Cluster count labels
       map.addLayer({
         id: 'cluster-count',
         type: 'symbol',
@@ -87,30 +92,28 @@
           'text-field': ['case', ['>', ['get','point_count'],500], '500+', ['get','point_count']],
           'text-size': 12
         },
-        paint: { 'text-color': '#FFFFFF' }
+        paint: { 'text-color': '#000000' }
       });
 
-      // Unclustered points
+      // Unclustered points as pin icon
       map.addLayer({
         id: 'unclustered-point',
-        type: 'circle',
+        type: 'symbol',
         source: 'water',
         filter: ['!', ['has','point_count']],
-        paint: {
-          'circle-color': '#D1ffbd',
-          'circle-radius': 6,
-          'circle-stroke-width': 2,
-          'circle-stroke-color': '#fff',
-          'circle-opacity': 0.9
+        layout: {
+          'icon-image': 'pin',
+          'icon-size': 0.3,
+          'icon-offset': [0, -10]
         }
       });
 
-      // Initial data fetch
+      // Initial load and refresh on move
       fetchWater();
       map.on('moveend', fetchWater);
     });
 
-    // Fetch drinking water nodes from Overpass
+    // Fetch Overpass data
     function fetchWater() {
       const b = map.getBounds();
       const query = `[out:json][timeout:15];
@@ -119,25 +122,26 @@
       fetch('https://overpass-api.de/api/interpreter', {
         method: 'POST',
         body: query
-      }).then(res => res.json())
-        .then(json => {
-          const features = json.elements.map(el => ({
-            type: 'Feature',
-            properties: el.tags || {},
-            geometry: { type: 'Point', coordinates: [el.lon, el.lat] }
-          }));
-          map.getSource('water').setData({ type:'FeatureCollection', features });
-        })
-        .catch(err => console.error('Overpass error:', err));
+      })
+      .then(res => res.json())
+      .then(json => {
+        const features = json.elements.map(el => ({
+          type: 'Feature',
+          properties: el.tags || {},
+          geometry: { type: 'Point', coordinates: [el.lon, el.lat] }
+        }));
+        map.getSource('water').setData({ type:'FeatureCollection', features });
+      })
+      .catch(err => console.error(err));
     }
 
-    // Navigate on point click
+    // Navigate on click
     map.on('click', 'unclustered-point', e => {
       const [lon, lat] = e.features[0].geometry.coordinates;
       const url = /iP(hone|ad|od)/.test(navigator.platform)
         ? `maps://maps.apple.com/?daddr=${lat},${lon}`
         : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
-      window.open(url, '_blank');
+      window.open(url,'_blank');
     });
   </script>
 </body>
