@@ -37,7 +37,7 @@ cat <<EOF > tiles.json
   "version": "1.0.0",
   "scheme": "xyz",
   "tiles": [
-    "https://<YOUR_USERNAME>.github.io/<YOUR_REPO_NAME>/tiles/{z}/{x}/{y}.pbf"
+    "https://thedutchdesigner.github.io/water-finder/tiles/{z}/{x}/{y}.pbf"
   ]
 }
 EOF
