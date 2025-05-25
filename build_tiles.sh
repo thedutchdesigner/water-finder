@@ -13,17 +13,17 @@ fi
 echo "Using fountains.geojson as input..."
 cp fountains.geojson cleaned.geojson
 
-# 3. Build MBTiles
+# 3. Build MBTiles (force overwrite)
 echo "Building MBTiles..."
-tippecanoe -o fountains.mbtiles --drop-densest-as-needed -Z0 -z16 cleaned.geojson
+tippecanoe --force -o fountains.mbtiles --drop-densest-as-needed -Z0 -z16 cleaned.geojson
 
 # 4. Extract PBF tiles into tiles/
 echo "Extracting PBF tiles..."
-rm -rf tiles
+rm -rf tiles fountains.mbtiles
 mb-util fountains.mbtiles tiles --image_format=pbf
 
 # 5. Write tiles.json manifest
-echo "Writing tiles.json..."
+echo "Writing tiles.json manifest..."
 cat <<EOF > tiles.json
 {
   "tilejson": "2.2.0",
@@ -36,4 +36,4 @@ cat <<EOF > tiles.json
 }
 EOF
 
-echo "Done! Now run: git add cleaned.geojson tiles tiles.json && git commit -m 'Add vector tiles' && git push"
+echo "Done! Now run: git add cleaned.geojson tiles tiles.json && git commit -m 'Update vector tiles' && git push"
