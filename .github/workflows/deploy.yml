@@ -4,6 +4,7 @@ on:
     paths:
       - 'fountains.geojson'
       - '.github/workflows/deploy.yml'
+
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
@@ -13,7 +14,9 @@ jobs:
 
       - name: Generate MBTiles with Tippecanoe
         run: |
-          docker run --rm -v ${{ github.workspace }}:/data quay.io/mapbox/tippecanoe             tippecanoe -o /data/fountains.mbtiles             --drop-densest-as-needed -Z0 -z16 /data/fountains.geojson
+          docker run --rm -v "${{ github.workspace }}:/data" mapbox/tippecanoe tippecanoe \
+            -o /data/fountains.mbtiles \
+            --drop-densest-as-needed -Z0 -z16 /data/fountains.geojson
 
       - name: Extract PBF Tiles
         run: |
