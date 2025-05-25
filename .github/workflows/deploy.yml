@@ -12,19 +12,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Install Tippecanoe
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y tippecanoe
+          sudo apt-get install -y tippecanoe jq python3-pip
+          pip3 install mbutil
+
+      - name: Convert Overpass JSON to GeoJSON via jq
+        run: |
+          jq -r '{
+            type: "FeatureCollection",
+            features: (.elements | map(select(.lat and .lon) |
+              {
+                type: "Feature",
+                geometry: { type: "Point", coordinates: [.lon, .lat] },
+                properties: (.tags // {})
+              }
+            ))
+          }' fountains.geojson > cleaned.geojson
 
       - name: Generate MBTiles with Tippecanoe
         run: |
-          # Ensure fountains.geojson is a valid GeoJSON FeatureCollection of Points
-          tippecanoe             -o fountains.mbtiles             --drop-densest-as-needed -Z0 -z16 fountains.geojson
+          tippecanoe             -o fountains.mbtiles             --drop-densest-as-needed -Z0 -z16 cleaned.geojson
 
       - name: Extract PBF Tiles
         run: |
-          python3 -m pip install mbutil
           mb-util fountains.mbtiles tiles --image_format=pbf
 
       - name: Create TileJSON
