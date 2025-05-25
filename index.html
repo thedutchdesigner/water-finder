@@ -6,16 +6,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet"/>
   <style>
-    body, html { margin:0; padding:0; height:100%; }
+    body, html { margin:0; padding:0; height:100%; overflow:hidden; }
     #map { position:absolute; top:0; bottom:0; left:0; right:0; }
+    #locate { position:absolute; top:10px; left:10px; z-index: 1;
+      background:white; border:none; border-radius:4px; padding:8px; cursor:pointer;
+      box-shadow:0 1px 4px rgba(0,0,0,0.3); }
   </style>
 </head>
 <body>
+  <button id="locate">📍 Locate Me</button>
   <div id="map"></div>
   <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
   <script>
-    // Initialize map
-    const API_KEY = 'KtkfQkx8DxnyjkBQfUeS';
     const map = new maplibregl.Map({
       container: 'map',
       style: {
@@ -27,11 +29,11 @@
             tileSize: 256
           },
           water: {
-            type: 'vector',
-            url: `https://api.maptiler.com/tiles/v3/tiles.json?key=${API_KEY}`,
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [] },
             cluster: true,
-            clusterMaxZoom: 16,
-            clusterRadius: 50
+            clusterRadius: 50,
+            clusterMaxZoom: 16
           }
         },
         layers: [
@@ -42,42 +44,53 @@
       zoom: 13
     });
 
+    function fetchWater() {
+      const b = map.getBounds();
+      const query = `[out:json][timeout:15];
+        node["amenity"="drinking_water"](${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()});
+        out body;`;
+      fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        body: query
+      }).then(res => res.json())
+        .then(json => {
+          const features = json.elements.map(el => ({
+            type: 'Feature',
+            properties: el.tags || {},
+            geometry: { type: 'Point', coordinates: [el.lon, el.lat] }
+          }));
+          map.getSource('water').setData({ type:'FeatureCollection', features });
+        });
+    }
+
     map.on('load', () => {
-      // Add cluster layer
+      // Add cluster layers
       map.addLayer({
         id: 'clusters',
         type: 'circle',
         source: 'water',
-        'source-layer': 'water_point',
         filter: ['has', 'point_count'],
         paint: {
           'circle-color': '#1976d2',
-          'circle-radius': ['step', ['get','point_count'], 20, 100, 30, 500, 40]
+          'circle-radius': ['step', ['get', 'point_count'], 15, 100, 20, 500, 25]
         }
       });
-
-      // Cluster count labels
       map.addLayer({
         id: 'cluster-count',
         type: 'symbol',
         source: 'water',
-        'source-layer': 'water_point',
-        filter: ['has','point_count'],
+        filter: ['has', 'point_count'],
         layout: {
-          'text-field': ['case', ['>', ['get','point_count'],500], '500+', ['get','point_count']],
-          'text-font': ['Open Sans Bold'],
-          'text-size': 12
+          'text-field': ['case', ['>', ['get', 'point_count'], 500], '500+', ['get', 'point_count']],
+          'text-size': 10
         },
         paint: { 'text-color': '#fff' }
       });
-
-      // Unclustered points
       map.addLayer({
-        id: 'unclustered',
+        id: 'unclustered-point',
         type: 'circle',
         source: 'water',
-        'source-layer': 'water_point',
-        filter: ['!', ['has','point_count']],
+        filter: ['!', ['has', 'point_count']],
         paint: {
           'circle-color': '#1976d2',
           'circle-radius': 6,
@@ -86,11 +99,34 @@
         }
       });
 
-      // Debug
-      console.log('Map and layers loaded.');
+      // Fetch initial data
+      fetchWater();
+
+      // Update on moveend
+      map.on('moveend', fetchWater);
     });
 
-    map.on('error', (e) => console.error('Maplibre error:', e.error || e));
+    // Handle clicks on unclustered points
+    map.on('click', 'unclustered-point', e => {
+      const [lon, lat] = e.features[0].geometry.coordinates;
+      const url = /iP(hone|ad|od)/.test(navigator.platform)
+        ? `maps://maps.apple.com/?daddr=${lat},${lon}`
+        : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
+      window.open(url, '_blank');
+    });
+
+    // Locate button
+    document.getElementById('locate').onclick = () => {
+      map.flyTo({ center: map.getCenter(), zoom:16 });
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+          const coords = [pos.coords.longitude, pos.coords.latitude];
+          map.flyTo({ center: coords, zoom:16 });
+          new maplibregl.Marker({ color: 'blue' })
+            .setLngLat(coords).addTo(map);
+        });
+      } else alert('Geolocation not supported');
+    };
   </script>
 </body>
 </html>
