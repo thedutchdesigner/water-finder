@@ -1,122 +1,103 @@
-// app.js - Adjusted clustering to reduce cluster count
+// app.js - Static clustering with Web Worker
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   // Initialize map
-  const map = L.map('map').setView([0, 0], 15);
+  const mapEl = document.getElementById('map');
+  const map = L.map(mapEl).setView([0, 0], 15);
   L.tileLayer(
     'https://cartodb-basemaps-a.global.ssl.fastly.net/light_nolabels/{z}/{x}/{y}.png',
     { maxZoom: 19, attribution: '© OpenStreetMap contributors © CartoDB' }
   ).addTo(map);
 
-  // MarkerClusterGroup with larger cluster radius and more zoom levels
-  const markers = L.markerClusterGroup({
-    animate: true,
-    animateAddingMarkers: true,
-    chunkedLoading: true,
-    chunkInterval: 80,
-    removeOutsideVisibleBounds: true,
-    spiderfyOnMaxZoom: true,
-    showCoverageOnHover: false,
-    // Allow clustering until very high zoom to reduce marker count
-    disableClusteringAtZoom: 18,
-    // Increase cluster radius to merge more markers
-    maxClusterRadius: (zoom) => {
-      if (zoom < 10) return 200;
-      if (zoom < 14) return 150;
-      if (zoom < 18) return 100;
-      return 50;
-    },
-    iconCreateFunction: (cluster) => {
-      const count = cluster.getChildCount();
-      const label = count > 500 ? '500+' : count;
-      const size = Math.max(40, Math.min(count * 2, 80));
-      return L.divIcon({
-        html: `<div class="cluster-icon" style="width:${size}px; height:${size}px; line-height:${size}px;">${label}</div>`,
-        className: '',
-        iconSize: [size, size]
-      });
-    }
-  }).addTo(map);
-
-  // Cache for Overpass API
-  const cache = new Map();
-  async function fetchFountains(bounds) {
-    const key = [bounds.getSouth(), bounds.getWest(), bounds.getNorth(), bounds.getEast()]
-      .map(v => v.toFixed(3)).join(',');
-    if (cache.has(key)) return cache.get(key);
-    try {
-      const query = `[out:json][timeout:20];
-node["amenity"="drinking_water"](${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()});
-out center;`;
-      const resp = await fetch('https://overpass-api.de/api/interpreter', {
-        method: 'POST', body: query
-      });
-      const data = await resp.json();
-      cache.set(key, data.elements);
-      return data.elements;
-    } catch (e) {
-      console.error('Overpass error', e);
-      return [];
-    }
+  // Load fountains.json
+  let fountains = [];
+  try {
+    fountains = await fetch('fountains.json').then(r => r.json());
+  } catch (err) {
+    console.error('Failed to load fountains.json', err);
+    return;
   }
 
-  // Render/update markers
-  let updating = false;
-  async function updateMarkers() {
-    if (updating) return;
-    updating = true;
-    const bounds = map.getBounds();
-    const points = await fetchFountains(bounds);
-    markers.clearLayers();
-    points.forEach(pt => {
-      const lat = pt.lat ?? pt.center.lat;
-      const lon = pt.lon ?? pt.center.lon;
-      if (lat == null || lon == null) return;
-      const icon = L.divIcon({ className: 'circle-icon', iconSize: [16,16], iconAnchor: [8,8] });
-      const m = L.marker([lat, lon], { icon })
-        .on('click', () => {
-          const url = /iP(hone|ad|od)/.test(navigator.platform)
-            ? `maps://maps.apple.com/?daddr=${lat},${lon}`
-            : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
-          window.open(url, '_blank');
+  // Setup Supercluster worker
+  const worker = new Worker('cluster-worker.js');
+  let workerReady = false;
+  worker.onmessage = (e) => {
+    const { type, clusters } = e.data;
+    if (type === 'loaded') {
+      workerReady = true;
+      requestClusters();
+    } else if (type === 'clusters') {
+      renderClusters(clusters);
+    }
+  };
+  worker.postMessage({ type: 'load', data: fountains });
+
+  // Marker layer
+  const markerLayer = L.layerGroup().addTo(map);
+
+  // Request clusters
+  function requestClusters() {
+    if (!workerReady) return;
+    const b = map.getBounds();
+    const bbox = [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
+    worker.postMessage({ type: 'getClusters', bbox, zoom: map.getZoom() });
+  }
+
+  // Render clusters
+  function renderClusters(clusters) {
+    markerLayer.clearLayers();
+    clusters.forEach(c => {
+      const [lon, lat] = c.geometry.coordinates;
+      const props = c.properties;
+      if (props.cluster) {
+        const cnt = props.point_count;
+        const label = cnt > 500 ? '500+' : cnt;
+        const size = Math.max(30, Math.min(cnt * 2, 60));
+        const icon = L.divIcon({
+          html: `<div class="cluster-icon" style="width:${size}px;height:${size}px;line-height:${size}px;">${label}</div>`,
+          className:'', iconSize:[size, size]
         });
-      markers.addLayer(m);
+        L.marker([lat, lon], { icon })
+          .on('click', () => {
+            map.setView([lat, lon], map.getZoom() + 2);
+          }).addTo(markerLayer);
+      } else {
+        const icon = L.divIcon({ className:'circle-icon', iconSize:[16,16], iconAnchor:[8,8] });
+        L.marker([lat, lon], { icon })
+          .on('click', () => {
+            const url = /iP(hone|ad|od)/.test(navigator.platform)
+              ? `maps://maps.apple.com/?daddr=${lat},${lon}`
+              : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
+            window.open(url, '_blank');
+          }).addTo(markerLayer);
+      }
     });
-    updating = false;
   }
 
   // Map events
-  map.locate({ setView: true, maxZoom: 16 });
+  map.locate({ setView:true, maxZoom:16 });
   map.on('locationfound', e => {
     L.circleMarker(e.latlng, { radius:6, fillColor:'blue', fillOpacity:0.9, color:null }).addTo(map);
-    updateMarkers();
+    requestClusters();
   });
-  map.on('moveend zoomend', () => updateMarkers());
+  map.on('moveend zoomend', () => requestClusters());
 
-  // AR toggle (camera only)
+  // AR toggle
   const arBtn = document.getElementById('ar-button'),
         arView = document.getElementById('ar-view'),
         exitBtn = document.getElementById('exit-ar'),
         video = document.getElementById('ar-video');
   let stream;
   arBtn.addEventListener('click', async () => {
-    document.getElementById('map').style.display = 'none';
-    arBtn.style.display = 'none';
-    arView.style.display = 'block';
+    mapEl.style.display='none'; arBtn.style.display='none'; arView.style.display='block';
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode:'environment'} });
-      video.srcObject = stream;
-      await video.play();
-    } catch {
-      alert('Camera unavailable');
-      exitAR();
-    }
+      stream = await navigator.mediaDevices.getUserMedia({ video:{facingMode:'environment'} });
+      video.srcObject = stream; await video.play();
+    } catch { alert('Camera unavailable'); exitAR(); }
   });
   exitBtn.addEventListener('click', exitAR);
   function exitAR() {
-    if (stream) stream.getTracks().forEach(t => t.stop());
-    arView.style.display = 'none';
-    document.getElementById('map').style.display = 'block';
-    arBtn.style.display = 'block';
+    if (stream) stream.getTracks().forEach(t=>t.stop());
+    arView.style.display='none'; mapEl.style.display='block'; arBtn.style.display='block';
   }
 });
