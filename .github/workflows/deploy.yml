@@ -12,14 +12,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Install Tippecanoe
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y tippecanoe
+          sudo apt-get install -y tippecanoe nodejs npm
+          npm install -g osmtogeojson
+
+      - name: Convert Overpass JSON to GeoJSON
+        run: |
+          osmtogeojson fountains.geojson > cleaned.geojson
 
       - name: Generate MBTiles with Tippecanoe
         run: |
-          tippecanoe             -o fountains.mbtiles             --drop-densest-as-needed -Z0 -z16 fountains.geojson
+          tippecanoe             -o fountains.mbtiles             --drop-densest-as-needed -Z0 -z16 cleaned.geojson
 
       - name: Extract PBF Tiles
         run: |
