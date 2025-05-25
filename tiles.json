@@ -4,6 +4,6 @@
   "version": "1.0.0",
   "scheme": "xyz",
   "tiles": [
-    "https://<USERNAME>.github.io/<REPO_NAME>/tiles/{z}/{x}/{y}.pbf"
+    "https://thedutchdesigner.github.io/water-finder/tiles/{z}/{x}/{y}.pbf"
   ]
 }
