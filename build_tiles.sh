@@ -3,7 +3,7 @@
 
 set -e
 
-# 1. Ensure source exists
+# 1. Check for source
 if [ ! -f fountains.geojson ]; then
   echo "Error: fountains.geojson not found!"
   exit 1
@@ -20,7 +20,7 @@ rm -f cleaned.geojson
 echo "Copying fountains.geojson to cleaned.geojson..."
 cp fountains.geojson cleaned.geojson
 
-# 4. Build new MBTiles
+# 4. Build new MBTiles (force overwrite)
 echo "Building fresh MBTiles..."
 tippecanoe --force -o fountains.mbtiles --drop-densest-as-needed -Z0 -z16 cleaned.geojson
 
