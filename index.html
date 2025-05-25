@@ -2,26 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <title>Water Finder (Vector Tiles)</title>
+  <title>Water Finder</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet"/>
   <style>
-    body, html { margin:0; padding:0; height:100%; overflow:hidden; }
+    body, html { margin:0; padding:0; height:100%; }
     #map { position:absolute; top:0; bottom:0; left:0; right:0; }
-    #ar-button {
-      position:absolute; bottom:10px; right:10px; z-index:1000;
-      width:48px; height:48px; background:#FF5722; color:#fff;
-      border:none; border-radius:50%; font-size:24px;
-      display:flex; align-items:center; justify-content:center;
-      cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.3);
-    }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <button id="ar-button" title="Enter AR">📷</button>
   <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
   <script>
+    // Initialize map
     const API_KEY = 'KtkfQkx8DxnyjkBQfUeS';
     const map = new maplibregl.Map({
       container: 'map',
@@ -31,10 +24,9 @@
           basemap: {
             type: 'raster',
             tiles: ['https://cartodb-basemaps-a.global.ssl.fastly.net/light_nolabels/{z}/{x}/{y}.png'],
-            tileSize: 256,
-            attribution: '© OpenStreetMap contributors © CartoDB'
+            tileSize: 256
           },
-          fountains: {
+          water: {
             type: 'vector',
             url: `https://api.maptiler.com/tiles/v3/tiles.json?key=${API_KEY}`,
             cluster: true,
@@ -46,15 +38,16 @@
           { id: 'basemap', type: 'raster', source: 'basemap' }
         ]
       },
-      center: [8.5417,47.3769],
+      center: [8.5417, 47.3769],
       zoom: 13
     });
 
-    map.on('style.load', () => {
+    map.on('load', () => {
+      // Add cluster layer
       map.addLayer({
         id: 'clusters',
         type: 'circle',
-        source: 'fountains',
+        source: 'water',
         'source-layer': 'water_point',
         filter: ['has', 'point_count'],
         paint: {
@@ -62,22 +55,27 @@
           'circle-radius': ['step', ['get','point_count'], 20, 100, 30, 500, 40]
         }
       });
+
+      // Cluster count labels
       map.addLayer({
         id: 'cluster-count',
         type: 'symbol',
-        source: 'fountains',
+        source: 'water',
         'source-layer': 'water_point',
         filter: ['has','point_count'],
         layout: {
-          'text-field': ['case',['>',['get','point_count'],500],'500+',['get','point_count']],
+          'text-field': ['case', ['>', ['get','point_count'],500], '500+', ['get','point_count']],
+          'text-font': ['Open Sans Bold'],
           'text-size': 12
         },
         paint: { 'text-color': '#fff' }
       });
+
+      // Unclustered points
       map.addLayer({
         id: 'unclustered',
         type: 'circle',
-        source: 'fountains',
+        source: 'water',
         'source-layer': 'water_point',
         filter: ['!', ['has','point_count']],
         paint: {
@@ -88,14 +86,11 @@
         }
       });
 
-      map.on('click','unclustered', e => {
-        const [lon,lat] = e.features[0].geometry.coordinates;
-        const url = /iP(hone|ad|od)/.test(navigator.platform)
-          ? `maps://maps.apple.com/?daddr=${lat},${lon}`
-          : `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
-        window.open(url,'_blank');
-      });
+      // Debug
+      console.log('Map and layers loaded.');
     });
+
+    map.on('error', (e) => console.error('Maplibre error:', e.error || e));
   </script>
 </body>
 </html>
