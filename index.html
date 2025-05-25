@@ -37,16 +37,80 @@
         ]
       },
       center: [8.5417, 47.3769],
-      zoom: 13
+      zoom: 2
     });
 
-    // Add geolocate control to show user location
-    map.addControl(new maplibregl.GeolocateControl({
+    // Geolocate control to center on user's location
+    const geo = new maplibregl.GeolocateControl({
       positionOptions: { enableHighAccuracy: true },
       trackUserLocation: true,
       showUserHeading: true
-    }), 'top-left');
+    });
+    map.addControl(geo, 'top-left');
 
+    map.on('load', () => {
+      // Trigger geolocation on load
+      geo.on('geolocate', e => {
+        map.flyTo({ center: [e.coords.longitude, e.coords.latitude], zoom: 14 });
+      });
+      geo.trigger(); // prompt location
+
+      // Cluster circles with zoom-based colors
+      map.addLayer({
+        id: 'clusters',
+        type: 'circle',
+        source: 'water',
+        filter: ['has', 'point_count'],
+        paint: {
+          // Color transitions based on zoom level
+          'circle-color': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            5, '#93c47d',   // Lime Parfait
+            10, '#84b071',  // Sage
+            14, '#769d64',  // Mosslands
+            18, '#678958'   // Tee Off
+          ],
+          'circle-radius': ['step', ['get','point_count'], 15, 100, 20, 500, 25],
+          'circle-opacity': 0.75
+        }
+      });
+
+      // Cluster count labels (white for contrast)
+      map.addLayer({
+        id: 'cluster-count',
+        type: 'symbol',
+        source: 'water',
+        filter: ['has','point_count'],
+        layout: {
+          'text-field': ['case', ['>', ['get','point_count'],500], '500+', ['get','point_count']],
+          'text-size': 12
+        },
+        paint: { 'text-color': '#FFFFFF' }
+      });
+
+      // Unclustered points
+      map.addLayer({
+        id: 'unclustered-point',
+        type: 'circle',
+        source: 'water',
+        filter: ['!', ['has','point_count']],
+        paint: {
+          'circle-color': '#D1ffbd',
+          'circle-radius': 6,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#fff',
+          'circle-opacity': 0.9
+        }
+      });
+
+      // Initial data fetch
+      fetchWater();
+      map.on('moveend', fetchWater);
+    });
+
+    // Fetch drinking water nodes from Overpass
     function fetchWater() {
       const b = map.getBounds();
       const query = `[out:json][timeout:15];
@@ -63,69 +127,11 @@
             geometry: { type: 'Point', coordinates: [el.lon, el.lat] }
           }));
           map.getSource('water').setData({ type:'FeatureCollection', features });
-        });
+        })
+        .catch(err => console.error('Overpass error:', err));
     }
 
-    map.on('load', () => {
-      // Cluster circles
-      map.addLayer({
-        id: 'clusters',
-        type: 'circle',
-        source: 'water',
-        filter: ['has', 'point_count'],
-        paint: {
-          'circle-color': '#D1ffbd',
-          'circle-radius': [
-            'step',
-            ['get','point_count'],
-            15, 100,
-            20, 500,
-            25
-          ],
-          'circle-opacity': 0.75,
-          'circle-radius-transition': { duration: 300, delay: 0 },
-          'circle-color-transition': { duration: 300, delay: 0 }
-        }
-      });
-
-      // Cluster count labels
-      map.addLayer({
-        id: 'cluster-count',
-        type: 'symbol',
-        source: 'water',
-        filter: ['has','point_count'],
-        layout: {
-          'text-field': ['case', ['>', ['get','point_count'],500], '500+', ['get','point_count']],
-          'text-size': 12,
-          'text-font': ['Open Sans Bold']
-        },
-        paint: { 'text-color': '#000' }
-      });
-
-      // Unclustered points
-      map.addLayer({
-        id: 'unclustered-point',
-        type: 'circle',
-        source: 'water',
-        filter: ['!', ['has','point_count']],
-        paint: {
-          'circle-color': '#D1ffbd',
-          'circle-radius': 6,
-          'circle-stroke-width': 2,
-          'circle-stroke-color': '#fff',
-          'circle-opacity': 0.9,
-          'circle-radius-transition': { duration: 300, delay: 0 }
-        }
-      });
-
-      // Fetch initial and on map move
-      fetchWater();
-      map.on('moveend', fetchWater);
-
-      console.log('Map and clusters initialized.');
-    });
-
-    // Click on unclustered point to navigate
+    // Navigate on point click
     map.on('click', 'unclustered-point', e => {
       const [lon, lat] = e.features[0].geometry.coordinates;
       const url = /iP(hone|ad|od)/.test(navigator.platform)
