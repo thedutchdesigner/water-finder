@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
-# convert_overpass.py
-# Reads an Overpass-style JSON dump and writes valid GeoJSON for Tippecanoe.
+# convert_overpass.py — turn Overpass JSON into real GeoJSON Points
 
 import json
+import sys
 
-# 1. Load your Overpass dump (still named fountains.geojson)
-with open('fountains.geojson', 'r', encoding='utf-8') as f:
-    data = json.load(f)
+# Load Overpass dump (your fountains.geojson)
+try:
+    data = json.load(open('fountains.geojson', 'r', encoding='utf-8'))
+except Exception as e:
+    print("Error reading fountains.geojson:", e)
+    sys.exit(1)
 
 if 'elements' not in data:
-    print("Error: 'elements' key not found in fountains.geojson.")
-    exit(1)
+    print("Error: fountains.geojson must be the Overpass output with an 'elements' array.")
+    sys.exit(1)
 
-# 2. Build GeoJSON features array
 features = []
 for el in data['elements']:
     lat = el.get('lat')
@@ -28,13 +30,11 @@ for el in data['elements']:
         }
     })
 
-# 3. Wrap in a FeatureCollection
 geojson = {
     "type": "FeatureCollection",
     "features": features
 }
 
-# 4. Write out the cleaned file
 with open('fountains.clean.geojson', 'w', encoding='utf-8') as f:
     json.dump(geojson, f, ensure_ascii=False, indent=2)
 
