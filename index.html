@@ -1,28 +1,95 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-  <title>Water Finder</title>
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"/>
-  <!-- MarkerCluster CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css"/>
-  <!-- Custom styles -->
-  <link rel="stylesheet" href="styles.css"/>
+  <meta charset="utf-8">
+  <title>Water Finder (Vector Tiles)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet"/>
+  <style>
+    body, html { margin:0; padding:0; height:100%; overflow:hidden; }
+    #map { position:absolute; top:0; bottom:0; left:0; right:0; }
+    #ar-button { position:absolute; bottom:10px; right:10px; z-index:1000;
+      width:48px; height:48px; background:#FF5722; color:#fff;
+      border:none; border-radius:50%; font-size:24px;
+      display:flex; align-items:center; justify-content:center;
+      cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.3);
+    }
+  </style>
 </head>
 <body>
   <div id="map"></div>
   <button id="ar-button" title="Enter AR">📷</button>
-  <div id="ar-view">
-    <video id="ar-video" autoplay muted playsinline webkit-playsinline></video>
-    <button id="exit-ar" title="Exit AR">✕</button>
-  </div>
+  <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
+  <script>
+    const map = new maplibregl.Map({
+      container: 'map',
+      style: {
+        version: 8,
+        sources: {
+          basemap: {
+            type: 'raster',
+            tiles: ['https://cartodb-basemaps-a.global.ssl.fastly.net/light_nolabels/{z}/{x}/{y}.png'],
+            tileSize: 256,
+            attribution: '© OpenStreetMap contributors © CartoDB'
+          },
+          fountains: {
+            type: 'vector',
+            url: 'https://<USERNAME>.github.io/<REPO_NAME>/tiles.json',
+            cluster: true,
+            clusterMaxZoom: 16,
+            clusterRadius: 50
+          }
+        },
+        layers: [
+          { id: 'basemap', type: 'raster', source: 'basemap' }
+        ]
+      },
+      center: [8.5417,47.3769],
+      zoom: 13
+    });
 
-  <!-- Scripts -->
-  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
-  <script src="app.js"></script>
+    map.on('style.load', () => {
+      map.addLayer({
+        id: 'clusters',
+        type: 'circle',
+        source: 'fountains',
+        'source-layer': 'fountains',
+        filter: ['has', 'point_count'],
+        paint: {
+          'circle-color': '#1976d2',
+          'circle-radius': ['step', ['get', 'point_count'], 20, 100, 30, 500, 40]
+        }
+      });
+      map.addLayer({
+        id: 'cluster-count',
+        type: 'symbol',
+        source: 'fountains',
+        'source-layer': 'fountains',
+        filter: ['has', 'point_count'],
+        layout: { 'text-field': ['case', ['>', ['get','point_count'],500], '500+', ['get','point_count']], 'text-size': 12 },
+        paint: { 'text-color': '#fff' }
+      });
+      map.addLayer({
+        id: 'unclustered',
+        type: 'circle',
+        source: 'fountains',
+        'source-layer': 'fountains',
+        filter: ['!', ['has', 'point_count']],
+        paint: {
+          'circle-color': '#1976d2',
+          'circle-radius': 6,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#fff'
+        }
+      });
+      map.on('click', 'unclustered', e => {
+        const [lon,lat] = e.features[0].geometry.coordinates;
+        const url = /iP(hone|ad|od)/.test(navigator.platform)
+          ? \`maps://maps.apple.com/?daddr=\${lat},\${lon}\`
+          : \`https://www.google.com/maps/dir/?api=1&destination=\${lat},\${lon}\`;
+        window.open(url,'_blank');
+      });
+    });
+  </script>
 </body>
 </html>
