@@ -1,42 +1,29 @@
 #!/usr/bin/env bash
-# build_tiles.sh - Generate vector tiles from fountains.geojson or fountains.json
+# build_tiles.sh - Generate vector tiles from fountains.geojson
 
 set -e
 
-INPUT_JSON=""
-# Determine input geojson source
-if [ -f fountains.json ]; then
-  echo "Found Overpass JSON: fountains.json"
-  if ! command -v osmtogeojson &> /dev/null; then
-    echo "Installing osmtogeojson…"
-    npm install -g osmtogeojson
-  fi
-  echo "Converting fountains.json to fountains.geojson…"
-  osmtogeojson fountains.json > fountains.geojson
-  INPUT_JSON="fountains.geojson"
-elif [ -f fountains.geojson ]; then
-  echo "Using existing fountains.geojson as input"
-  INPUT_JSON="fountains.geojson"
-else
-  echo "Error: neither fountains.json nor fountains.geojson found!"
+# Check for fountains.geojson
+if [ ! -f fountains.geojson ]; then
+  echo "Error: fountains.geojson not found!"
   exit 1
 fi
 
-# Ensure cleaned.geojson
-echo "Preparing cleaned.geojson…"
-cp "$INPUT_JSON" cleaned.geojson
+# Prepare cleaned.geojson
+echo "Using fountains.geojson as input..."
+cp fountains.geojson cleaned.geojson
 
-# 2. Build MBTiles using tippecanoe
-echo "Building MBTiles…"
-tippecanoe -o fountains.mbtiles   --drop-densest-as-needed -Z0 -z16 cleaned.geojson
+# Build MBTiles using tippecanoe
+echo "Building MBTiles..."
+tippecanoe -o fountains.mbtiles --drop-densest-as-needed -Z0 -z16 cleaned.geojson
 
-# 3. Extract PBF tiles using mbutil
-echo "Extracting PBF tiles to tiles/…"
+# Extract PBF tiles into tiles/ directory
+echo "Extracting PBF tiles..."
 rm -rf tiles
 mb-util fountains.mbtiles tiles --image_format=pbf
 
-# 4. Create tiles.json manifest
-echo "Writing tiles.json manifest…"
+# Create tiles.json manifest
+echo "Writing tiles.json manifest..."
 cat <<EOF > tiles.json
 {
   "tilejson": "2.2.0",
@@ -49,4 +36,4 @@ cat <<EOF > tiles.json
 }
 EOF
 
-echo "Done! Now: git add fountains.geojson tiles tiles.json && git commit -m 'Add vector tiles' && git push"
+echo "Done! Now commit fountains.geojson, cleaned.geojson, tiles, tiles.json"
