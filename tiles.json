@@ -3,5 +3,7 @@
   "name": "fountains",
   "version": "1.0.0",
   "scheme": "xyz",
-  "tiles": ["https://<USERNAME>.github.io/<REPO_NAME>/tiles/{z}/{x}/{y}.pbf"]
+  "tiles": [
+    "https://<USERNAME>.github.io/<REPO_NAME>/tiles/{z}/{x}/{y}.pbf"
+  ]
 }
